@@ -1,6 +1,5 @@
-
-import { Game } from './game/game';
 import { arrayOf, isFunction } from './utils';
+import {Game} from "./game/game";
 
 /* Array prototype */
 {
