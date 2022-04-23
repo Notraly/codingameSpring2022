@@ -1,4 +1,5 @@
 import {Point2D} from "../utils";
+import {Monster} from "./entity";
 
 let baseId = 0;
 
@@ -16,15 +17,17 @@ export abstract class Action {
 	}
 }
 
-export class ActionMove extends Action {
+export class ActionMoveToMonster extends Action {
 
-	constructor(public positionToGo: Point2D, public heroId: number) {
+	constructor(public monster: Monster, public nbHero: number) {
 		super();
 	}
 
 	doAction(msgs: string[] = []){
-		console.log('MOVE ' + this.positionToGo[0] + ' ' + this.positionToGo[1] + ' ' + msgs.join(' '));
+		console.log('MOVE ' + this.monster.position[0] + ' ' + this.monster.position[1] + ' ' + msgs.join(' '));
 		msgs.splice(0);
+		this.nbHero--;
+
 		return this.id;
 	}
 

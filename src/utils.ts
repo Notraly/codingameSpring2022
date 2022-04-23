@@ -1,6 +1,10 @@
 
 export type Point2D = [number, number];
 
+export function isEqual(a: Point2D, b: Point2D){
+	return a[0]===b[0] && a[1]===b[1];
+}
+
 /**
  * check if object is a function
  * @param functionToCheck
