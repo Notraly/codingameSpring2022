@@ -1,8 +1,8 @@
-import {rn, rns, rp} from '../read';
+import {r, rn, rns, rp} from '../read';
 import {Base} from "./base";
 import {EntityType, FarAwayTarget, Hero, Monster} from "./entity";
 import {diff, distance, distance2, isEqual, Point2D} from "../utils";
-import {Action, ActionMoveToMonster} from "./action";
+import {Action, ActionCamp, ActionMoveToMonster, ActionWait} from "./action";
 import {CampPosition} from "./commons";
 
 /**
@@ -46,7 +46,8 @@ export class Game {
 	myHeroes: Hero[] = [];
 	opponentHeroes: Hero[] = [];
 	possibleActions: Action[] = [];
-	campPos: CampPosition[] = []
+	campPos: CampPosition[] = [];
+	actionForThisRound: { action: Action, heroId: number }[] = [];
 
 	/**
 	 * methode call for init
@@ -57,8 +58,6 @@ export class Game {
 			health: undefined,
 			mana: undefined
 		}
-
-		console.error(this.myBase.position)
 
 		if (isEqual(this.myBase.position, [0, 0])) {
 			this.campPos = [
@@ -73,8 +72,6 @@ export class Game {
 				{pos: [15926, 4277], heroId: -1}
 			]
 		}
-
-		console.error(this.campPos);
 
 		this.heroesPerPlayer = rn();
 	}
@@ -173,17 +170,31 @@ export class Game {
 				nearMonsters.push(monster);
 			}
 		})
+		// console.error('nearest Monsters', nearMonsters);
 		return nearMonsters;
 	}
 
-	isNearestHero(heroId: number, targetPosition: Point2D): boolean {
-		return this.getNearestHeroOfPosition(targetPosition) === heroId;
+	isMyNearestHero(heroId: number, targetPosition: Point2D): boolean {
+		return this.getMyNearestHeroOfPosition(targetPosition) === heroId;
 	}
 
-	getNearestHeroOfPosition(targetPosition: Point2D): number {
+	getMyNearestHeroOfPosition(targetPosition: Point2D): number {
 		let nearestHero = this.myHeroes[0];
 		let nearestHeroDistance = distance(targetPosition, nearestHero.position);
 		this.myHeroes.map((hero) => {
+			let possibleHeroDistance = distance(targetPosition, hero.position);
+			if (possibleHeroDistance < nearestHeroDistance) {
+				nearestHero = hero;
+				nearestHeroDistance = possibleHeroDistance;
+			}
+		})
+		return nearestHero.id;
+	}
+
+	getNearestHeroOfPositionInList(targetPosition: Point2D, heroList: Hero[]): number {
+		let nearestHero = heroList[0];
+		let nearestHeroDistance = distance(targetPosition, nearestHero.position);
+		heroList.map((hero) => {
 			let possibleHeroDistance = distance(targetPosition, hero.position);
 			if (possibleHeroDistance < nearestHeroDistance) {
 				nearestHero = hero;
@@ -197,84 +208,68 @@ export class Game {
 		return this.myHeroes.find((hero) => hero.id === heroId);
 	}
 
-	goToNearestCampPos(heroId: number, msgs: string[] = []): void {
-
-		let nearestCamp = this.campPos[heroId];
-		console.log('MOVE ' + nearestCamp.pos[0] + ' ' + nearestCamp.pos[1] + ' ' + msgs.join(' '));
-		msgs.splice(0);
-
-		// let hero = this.getHeroById(heroId);
-		// let nearestCampId = this.campPos.findIndex((camp) => camp.heroId === -1);
-		// let oldCampId = this.campPos.findIndex((camp) => camp.heroId === heroId);
-		//
-		// // console.error('nearestCamp id', nearestCampId);
-		// // console.error('oldCamp id', oldCampId);
-		//
-		// if (oldCampId != -1 && this.campPos[oldCampId].pos != hero.position) {
-		// 	console.log('MOVE ' + this.campPos[oldCampId].pos[0] + ' ' + this.campPos[oldCampId].pos[1] + ' ' + msgs.join(' '));
-		// 	msgs.splice(0);
-		// } else {
-		// 	for (let i = 0; i < 3; i++) {
-		// 		// console.error('camp heroId', this.campPos[i].heroId);
-		// 		if (this.campPos[i].heroId === -1) {
-		//
-		// 			// console.error('nearestCamp id:', nearestCampId);
-		//
-		// 			let oldDistance = oldCampId != -1 ? distance(this.campPos[oldCampId].pos, hero.position) : 20000;
-		// 			let newDistance = distance(this.campPos[i].pos, hero.position);
-		//
-		// 			if (newDistance < oldDistance) {
-		//
-		// 				oldCampId = nearestCampId;
-		// 				nearestCampId = i;
-		//
-		// 				// console.error('new nearestCamp id:', nearestCampId)
-		// 			}
-		// 		}
-		//
-		// 		if (this.campPos[i].heroId === heroId) {
-		// 			console.log('MOVE ' + this.campPos[i].pos[0] + ' ' + this.campPos[i].pos[1] + ' ' + msgs.join(' '));
-		// 			msgs.splice(0);
-		// 		}
-		//
-		// 		// console.error('------------------------------------------');
-		//
-		// 	}
-		//
-		// 	// console.error('hero id', heroId);
-		// 	// console.error('nearestCamp id', nearestCampId);
-		// 	// console.error('oldCamp id', oldCampId);
-		//
-		// 	let nearestCamp = this.campPos[nearestCampId];
-		// 	this.campPos[nearestCampId].heroId = heroId;
-		// 	this.campPos[oldCampId].heroId = -1;
-		//
-		// 	// console.error('camps', this.campPos);
-		//
-		// 	console.log('MOVE ' + nearestCamp.pos[0] + ' ' + nearestCamp.pos[1] + ' ' + msgs.join(' '));
-		// 	msgs.splice(0);
-		//
-		// }
-	}
-
 	countHitBeforeMonsterDeath(monster: Monster): number {
-		return monster.health / 2;
+		return Math.ceil(monster.health / 2);
 	}
 
-	countRoundBeforeMonsterInBase(monster: Monster) {
+	countRoundBeforeMonsterInBase(monster: Monster): number {
 		return Math.trunc(distance(this.myBase.position, monster.position) / 400);
 	}
 
 	countHeroPerMonster(monster: Monster): number {
-		let ratio = this.countRoundBeforeMonsterInBase(monster) / this.countHitBeforeMonsterDeath(monster);
-		if (ratio > 1.5) {
-			return 2;
-		}
-		if (ratio > 2) {
-			return 3;
-		}
-		return 1;
+		let ratio = Math.round((this.countHitBeforeMonsterDeath(monster) / this.countRoundBeforeMonsterInBase(monster)) * 100) / 100;
+		console.error('ratio', ratio, 'monsterId', monster.id, 'monsterHitBforeDeath', this.countHitBeforeMonsterDeath(monster), 'countRound', this.countRoundBeforeMonsterInBase(monster));
+		let nbHero = 1;
 
+		if (ratio >= 0.5) {
+			nbHero = 2;
+		} else if (ratio > 0.7) {
+			nbHero = 3;
+		}
+
+		return nbHero;
+	}
+
+	getHighPriorityAction(): Action {
+		// console.error('possible action for HPA', JSON.stringify(this.possibleActions, null, '\t'));
+		let action;
+		if (this.possibleActions.length > 0){
+			action = this.possibleActions.best((action) => this.actionScore(action));
+		}
+		if (action) {
+			this.logAction(action, 'HPA:');
+			return action;
+		} else {
+			console.error('HPA: go to camp');
+			return new ActionCamp(this.campPos);
+		}
+	}
+
+	fillActionWithNearestMonster() {
+		this.possibleActions = [];
+
+		this.getMonsterNearBasePossible().map((monster) => {
+			let heroPerMonster: number;
+
+			this.possibleActions.push(new ActionMoveToMonster(monster, heroPerMonster ? heroPerMonster : this.countHeroPerMonster(monster)));
+			// console.error(
+			// 	'monster Id:', monster.id,
+			// 	'hits left:', this.countHitBeforeMonsterDeath(monster),
+			// 	'round left:', this.countRoundBeforeMonsterInBase(monster),
+			// 	'nbHero:', this.countHeroPerMonster(monster)
+			// );
+		})
+		console.error('possible action', JSON.stringify(this.possibleActions, null, '\t'));
+	}
+
+	isActionFull(action: Action):boolean{
+		let count = action.nbHero;
+		this.actionForThisRound.forEach((actionToDo) => {
+			if (actionToDo.action.id === action.id){
+				count--;
+			}
+		})
+		return count === 0;
 	}
 
 	/**
@@ -283,122 +278,157 @@ export class Game {
 	loop() {
 		this.readLoop();
 
-		this.myHeroes.map((hero) => {
+		this.fillActionWithNearestMonster();
 
-		})
+		let heroLeft = this.myHeroes;
 
-		this.getMonsterNearBasePossible().map((monster) => {
-			let heroPerMonster: number;
+		while (this.actionForThisRound.length < 3) {
+			// console.error('------------------------------------')
+			// console.error('heroLeft', heroLeft);
+			// console.error('action for this round (begin while)', JSON.stringify(this.actionForThisRound, null, '\t'));
 
-			let oldActionId = this.possibleActions.findIndex((action) => {
-				if ( action instanceof ActionMoveToMonster ){
-					heroPerMonster = action.nbHero;
-					return action.monster.id === monster.id;
-				}
-			});
+			let action = this.getHighPriorityAction();
 
-			if (oldActionId) {
-				this.possibleActions.splice(oldActionId, 1);
-			}
+			// console.error('HPA:', JSON.stringify(action, null, '\t'));
 
-			this.possibleActions.push(new ActionMoveToMonster(monster, heroPerMonster ? heroPerMonster : this.countHeroPerMonster(monster)));
-			console.error(
-				'monster Id:', monster.id,
-				'hits left:', this.countHitBeforeMonsterDeath(monster),
-				'round left:', this.countRoundBeforeMonsterInBase(monster),
-				'nbHero:', this.countHeroPerMonster(monster)
-			);
-		})
 
-		this.myHeroes.map((hero) => {
-			if (this.getActionToExecute(hero.id)) {
-				// console.error('heroId: ', hero.id);
-				// console.error('action: ', this.getActionToExecute(hero.id))
+			for (let i = 0; i < action.nbHero; i++) {
+				// console.error('hero left beginning for', heroLeft);
+				if (heroLeft.length > 0) {
 
-				let id = this.getActionToExecute(hero.id)?.doAction();
-				let idInlist = this.possibleActions.findIndex((action) => action.id === id);
-				let action = this.possibleActions[idInlist];
-				console.error('action choosed', action);
-				console.error('-------------------------------------')
-				if (action instanceof ActionMoveToMonster) {
-					if (action.nbHero === 0) {
-						this.possibleActions.splice(this.possibleActions.findIndex((action) => action.id === id), 1);
+					if (action instanceof ActionMoveToMonster) {
+
+
+						let nearestHeroId = this.getNearestHeroOfPositionInList(action.monster.position, heroLeft);
+
+						console.error('nearest hero id:', nearestHeroId);
+
+						this.actionForThisRound.push({
+							action: action,
+							heroId: nearestHeroId,
+						});
+						let indexInHeroLeft = heroLeft.findIndex((hero) => hero.id === nearestHeroId);
+						heroLeft.splice(indexInHeroLeft, 1);
+
+						// console.error('action is full', this.isActionFull(action));
+						if (this.isActionFull(action)){
+							let index = this.possibleActions.findIndex((possibleAction) => possibleAction.id === action.id);
+							this.possibleActions.splice(index, 1);
+						}
+
+					} else if (action instanceof ActionCamp) {
+						let heroId = heroLeft[0].id;
+						action.heroId = heroId;
+						this.logAction(action);
+						console.error('hero id to camp:', heroId)
+
+						action.setCamp();
+
+						this.actionForThisRound.push({
+							action: action,
+							heroId: heroId,
+						})
+						heroLeft.splice(0, 1);
 					}
 				}
-
-				let oldCampId = this.campPos.findIndex((camp) => camp.heroId === hero.id)
-				// console.error('oldCampId', oldCampId);
-				if (oldCampId != -1) {
-					this.campPos[oldCampId].heroId = -1;
-				}
-			} else {
-				// console.error('heroId: ', hero.id);
-				this.goToNearestCampPos(hero.id);
+				// console.error('hero left end for', heroLeft);
+				// console.error('action for this round (ends while)', (JSON.stringify(this.actionForThisRound, null, '\t')));
+				console.error('action for this round (ends while):');
+				this.logAction(this.actionForThisRound[0]?.action, '\theroId' + this.actionForThisRound[0]?.heroId);
+				this.logAction(this.actionForThisRound[1]?.action, '\theroId' + this.actionForThisRound[1]?.heroId);
+				this.logAction(this.actionForThisRound[2]?.action, '\theroId' + this.actionForThisRound[2]?.heroId);
 			}
-			// console.error('******************************************');
-		})
+		}
 
+		// console.error('action for this round', JSON.stringify(this.actionForThisRound, null, '\t'));
+
+		this.actionForThisRound
+			.sort((first, second) => 0 - (first.heroId > second.heroId ? -1 : 1))
+			.map((action) => action.action.doAction())
+			// .map((action) => action.action.doAction([action.heroId.toString()]))
+
+		this.actionForThisRound = [];
 	}
 
 	/**
 	 * function caller for determinate witch action should be played
 	 */
 
-	scoreAction(action: Action, heroId: number): number {
+	actionScore(action: Action): number {
 		let score = 0;
 		if (action instanceof ActionMoveToMonster) {
-			let hero = this.getHeroById(heroId);
-			if (this.isNearestHero(heroId, action.monster.position)) {
-				console.error('hero is the nearest');
+			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
 
-				let distanceHeroMonster = distance(hero.position, action.monster.position);
-
-				if (distanceHeroMonster < 8000) {
-					score += 20;
-				} else if (distanceHeroMonster < 4000) {
-					score += 40;
-				}
-
-				let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
-
-				if (distanceMonsterBase < 5000) {
-					score += 20
-				}
-				else if (distanceMonsterBase < 4000) {
-					score += 30;
-				} else if (distanceMonsterBase < 3000){
-					score += 40;
-				}
-
-				if (action.nbHero > 1 && action.monster.nearBase && action.monster.threatFor){
-					score += 40;
-				}
-
-			} else if (action.nbHero > 1) {
-				let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
-
-				if (distanceMonsterBase < 4000) {
-					score += 30;
-				} else if (distanceMonsterBase < 3000){
-					score += 40;
-				}
+			if (distanceMonsterBase < 5000) {
+				score += 20
+			} else if (distanceMonsterBase < 4000) {
+				score += 30;
+			} else if (distanceMonsterBase < 3000) {
+				score += 40;
+			} else if (distanceMonsterBase < 2500) {
+				score += 45;
+			} else if (distanceMonsterBase < 2000) {
+				score += 50;
 			}
-			console.error('hero id:', heroId, 'action:', action);
-			console.error('action score: ', score);
-			console.error('----------------------------------')
 		}
+		// console.error('action', JSON.stringify(action, null, '\t'), 'score:', score);
 		return score;
 	}
 
-	getActionToExecute(heroId: number): Action {
-		return this.possibleActions.best((action) => {
-			return this.scoreAction(action, heroId);
-		});
-	}
-
+	// scoreAction(action: Action, heroId: number): number {
+	// 	let score = 0;
+	// 	if (action instanceof ActionMoveToMonster) {
+	// 		let hero = this.getHeroById(heroId);
+	// 		if (this.isNearestHero(heroId, action.monster.position)) {
+	// 			console.error('hero', heroId, 'is the nearest');
+	//
+	// 			let distanceHeroMonster = distance(hero.position, action.monster.position);
+	//
+	// 			if (distanceHeroMonster < 8000) {
+	// 				score += 20;
+	// 			} else if (distanceHeroMonster < 4000) {
+	// 				score += 40;
+	// 			}
+	//
+	// 			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
+	//
+	// 			if (distanceMonsterBase < 5000) {
+	// 				score += 20
+	// 			}
+	// 			else if (distanceMonsterBase < 4000) {
+	// 				score += 30;
+	// 			} else if (distanceMonsterBase < 3000){
+	// 				score += 40;
+	// 			}
+	//
+	// 			if (action.nbHero > 1 && action.monster.nearBase && action.monster.threatFor){
+	// 				score += 40;
+	// 			}
+	//
+	// 		} else if (action.nbHero > 1) {
+	// 			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
+	//
+	// 			if (distanceMonsterBase < 4000) {
+	// 				score += 30;
+	// 			} else if (distanceMonsterBase < 3000){
+	// 				score += 40;
+	// 			}
+	// 		}
+	// 	}
+	// 	return score;
+	// }
 
 	addMessage(msg: string) {
 		console.error(msg);
 		//this.msgs.push(msg);
 	}
+
+	logAction(action: Action, initMsg:string = ''){
+		if (action instanceof ActionCamp){
+			console.error(initMsg, 'ActionCamp:', action.id, 'heroId:', action.heroId);
+		} else if (action instanceof ActionMoveToMonster){
+			console.error(initMsg, 'ActionMoveToMonster:', action.id, 'monster:' ,action.monster.id, 'nbHero:', action.nbHero);
+		}
+	}
+
 }
