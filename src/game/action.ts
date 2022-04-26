@@ -1,5 +1,6 @@
 import {Monster} from "./entity";
-import {CampPosition} from "./commons";
+import {CampPosition, MAP_HEIGHT, MAP_WIDTH} from "./commons";
+import {distance, isEqual, Point2D} from "../utils";
 
 let baseId = 0;
 
@@ -40,7 +41,7 @@ export class ActionCamp extends Action{
 	}
 
 	setCamp() {
-		console.error('camps', this.camp);
+		// console.error('camps', this.camp);
 		let index = this.heroId;
 		//todo go to nearest one
 		if (this.heroId > 2){
@@ -76,4 +77,31 @@ export class ActionWait extends Action {
 		console.log('WAIT ' + ' ' + msgs.join(' '));
 		msgs.splice(0);
 	}
+}
+
+export class ActionWind extends Action {
+
+	constructor(public monster: Monster, public direction, public nbHero: number = 1, public moveToBefore?: Point2D, public heroId: number = -1 ) {
+		super();
+
+		// this.nbHero = nbHero; TODO set nbHero if a lot of monster
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('SPELL WIND ' + this.direction[0] + ' ' + this.direction[1] + ' ' + msgs.join(' '));
+		msgs.splice(0);
+		return this.id;
+	}
+}
+
+export class ActionMove extends Action{
+	constructor(public posToGo: Point2D) {
+		super();
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('MOVE ' + this.posToGo[0] + ' ' + this.posToGo[1] + ' ' + msgs.join(' '));
+		msgs.splice(0);
+	}
+
 }
