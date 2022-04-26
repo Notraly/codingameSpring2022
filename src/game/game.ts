@@ -468,13 +468,16 @@ export class Game {
 		} else if (action instanceof ActionWind) {
 			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
 
-			if (distanceMonsterBase < WIND_ZONE) {
-				score += 200
-			} else {
+			if (distanceMonsterBase < 3000) {
 				score += 100
+			} else {
+				score += 50
 			}
+
+
 		}
-		// console.error('action', JSON.stringify(action, null, '\t'), 'score:', score);
+		// this.logAction(action, 'score '+score)
+		// console.error('score:', score);
 		return score;
 	}
 
