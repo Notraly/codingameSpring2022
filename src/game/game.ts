@@ -48,6 +48,7 @@ export class Game {
 	possibleActions: Action[] = [];
 	campPos: CampPosition[] = [];
 	actionForThisRound: { action: Action, heroId: number }[] = [];
+	campForAttack: Point2D[] = [];
 
 	/**
 	 * methode call for init
@@ -64,10 +65,21 @@ export class Game {
 			{pos: [15358, 3514], heroId: -1}
 		]
 
+		this.campForAttack = [
+			[9312,1096],
+			[8000,4131],
+			[5658,5780],
+			[2510,6249]
+		]
+
 		if (isEqual(this.myBase.position, [0, 0])) {
 			for (const {pos} of this.campPos) {
 				pos[0] = MAP_WIDTH - pos[0];
 				pos[1] = MAP_HEIGHT - pos[1];
+			}
+			for (const attackPos of this.campForAttack) {
+				attackPos[0] = MAP_WIDTH - attackPos[0];
+				attackPos[1] = MAP_HEIGHT - attackPos[1];
 			}
 		}
 
