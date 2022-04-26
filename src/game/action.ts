@@ -97,6 +97,7 @@ export class ActionWind extends Action {
 export class ActionMove extends Action{
 	constructor(public posToGo: Point2D) {
 		super();
+		this.nbHero = 1;
 	}
 
 	doAction(msgs: string[] = []) {

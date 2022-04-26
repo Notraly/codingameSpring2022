@@ -262,8 +262,13 @@ export class Game {
 		// console.error('possible action', JSON.stringify(this.possibleActions, null, '\t'));
 	}
 
-	isActionFull(action: Action): boolean {
-		let count = action.nbHero;
+	isActionFull(action: Action, nbHero?: number): boolean {
+		let count;
+		if (nbHero) {
+			count = nbHero;
+		} else {
+			count = action.nbHero;
+		}
 		this.actionForThisRound.forEach((actionToDo) => {
 			if (actionToDo.action.id === action.id) {
 				count--;
@@ -292,7 +297,6 @@ export class Game {
 				direction[1] = MAP_HEIGHT - direction[1];
 			}
 
-			// todo push in possible action with point at monsterPos + WIND_ZONE
 			monsterInBase.forEach((monster) => {
 				let action = new ActionWind(monster, direction);
 				// console.error('fill action', action);
@@ -309,7 +313,6 @@ export class Game {
 
 		this.fillActionWithNearestMonster();
 
-		// Todo fill with action wind if mana > MANA_MINI
 		if (this.myBase.mana > MANA_MINI) {
 			this.fillActionWithWind();
 		}
@@ -367,13 +370,12 @@ export class Game {
 						heroLeft.splice(0, 1);
 					} else if (action instanceof ActionWind) {
 
-						// todo don't push action if mana - manaAlreadyUsedForThisRound < MANA_MINI
 						if (manaLeft - 10 > MANA_MINI) {
 							if (action.heroId === -1) {
 								action.heroId = this.getNearestHeroOfPositionInList(action.monster.position, heroLeft);
 							}
 
-							// console.error('nearest hero id:', action.heroId);
+							// console.error('>> nearest hero id:', action.heroId);
 							// console.error('action', action);
 							// this.logAction(action, '>');
 							let nearestHero = this.getHeroById(action.heroId);
@@ -381,10 +383,12 @@ export class Game {
 
 							// if distance between hero and monster > WIND_ZONE
 							let distanceL = Math.round(distance(nearestHero.position, action.monster.position));
-							// console.error('distanceL', distanceL);
+							// console.error('> distanceL', distanceL, 'H', nearestHero.id, 'M', action.monster.id);
+
+							let actionToDo;
 
 							if (distanceL > WIND_ZONE) {
-								// console.error('need to move');
+								// console.error('>> need to move', 'H', nearestHero.id);
 
 								let ratio = 1 - (WIND_ZONE / distanceL);
 
@@ -395,14 +399,17 @@ export class Game {
 
 								action.moveToBefore = [Math.round(newX), Math.round(newY)];
 
+								actionToDo = new ActionMove(action.moveToBefore);
 
 								this.actionForThisRound.push({
-									action: new ActionMove(action.moveToBefore),
+									action: actionToDo,
 									heroId: nearestHero.id,
 								})
 							} else {
+								actionToDo = action;
+
 								this.actionForThisRound.push({
-									action: action,
+									action: actionToDo,
 									heroId: nearestHero.id,
 								})
 
@@ -412,11 +419,23 @@ export class Game {
 							let heroLeftIndex = heroLeft.findIndex((possibleHero) => possibleHero.id === nearestHero.id);
 							heroLeft.splice(heroLeftIndex, 1);
 
-							// console.error('action is full', this.isActionFull(action));
-							if (this.isActionFull(action)) {
-								let index = this.possibleActions.findIndex((possibleAction) => possibleAction.id === action.id);
-								this.possibleActions.splice(index, 1);
+							if (actionToDo instanceof ActionMove) {
+								// console.error('action ' + actionToDo.id + ' is full ?', this.isActionFull(actionToDo, action.nbHero));
+								if (this.isActionFull(actionToDo, action.nbHero)) {
+									let index = this.possibleActions.findIndex((possibleAction) => possibleAction.id === action.id);
+									this.possibleActions.splice(index, 1);
+								}
+							} else {
+								// console.error('action ' + actionToDo.id + ' is full ?', this.isActionFull(actionToDo));
+								if (this.isActionFull(actionToDo)) {
+									let index = this.possibleActions.findIndex((possibleAction) => possibleAction.id === actionToDo.id);
+									this.possibleActions.splice(index, 1);
+								}
 							}
+
+
+
+							// console.error('/!\\ heroLeft', heroLeft.map(hero => hero.id));
 
 						} else {
 							let actionIndex = this.possibleActions.findIndex((possibleAction) => possibleAction.id === action.id);
@@ -426,18 +445,37 @@ export class Game {
 					}
 				}
 
-				console.error('action for this round (ends while):');
-				this.actionForThisRound.forEach((actionFor) => {
-					this.logAction(actionFor.action, '\theroId ' + actionFor.heroId);
-				})
+				// console.error('tempo action for this round (ends while):');
+				// this.actionForThisRound.forEach((actionFor) => {
+				// 	this.logAction(actionFor.action, '\theroId ' + actionFor.heroId);
+				// })
 			}
 		}
 
-		// console.error('action for this round', JSON.stringify(this.actionForThisRound, null, '\t'));
+		// console.error('action for this round');
+		// this.actionForThisRound.forEach((actionFor) => {
+		// 	this.logAction(actionFor.action, '\theroId ' + actionFor.heroId);
+		// })
 
 		this.actionForThisRound
 			.sort((first, second) => 0 - (first.heroId > second.heroId ? -1 : 1))
-			.map((action) => action.action.doAction())
+			.map((action) => {
+				let msg = [];
+				if (action.action instanceof ActionMoveToMonster) {
+					msg.push('H' + action.heroId, 'target:', action.action.monster.id);
+				} else if (action.action instanceof ActionWind) {
+					msg.push('H' + action.heroId, 'wind:', action.action.monster.id);
+				} else if (action.action instanceof ActionCamp) {
+					let index = action.heroId;
+					if (action.heroId > 2) {
+						index = action.heroId - 3;
+					}
+					msg.push('H' + action.heroId, 'camp: ', this.campPos[index].pos[0] + ',' + this.campPos[index].pos[1]);
+				} else if (action.action instanceof ActionMove) {
+					msg.push('H' + action.heroId, 'move:', action.action.posToGo[0] + ',' + action.action.posToGo[1]);
+				}
+				action.action.doAction(msg);
+			})
 		// .map((action) => action.action.doAction([action.heroId.toString()]))
 
 		this.actionForThisRound = [];
@@ -468,7 +506,7 @@ export class Game {
 		} else if (action instanceof ActionWind) {
 			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
 
-			if (distanceMonsterBase < 3000) {
+			if (distanceMonsterBase < 4000) {
 				score += 100
 			} else {
 				score += 50
@@ -476,7 +514,7 @@ export class Game {
 
 
 		}
-		this.logAction(action, 'score '+ score)
+		// this.logAction(action, 'score ' + score + ' ||')
 		// console.error('score:', score);
 		return score;
 	}
@@ -504,8 +542,10 @@ export class Game {
 			console.error(initMsg, 'ActionCamp:', action.id, 'heroId:', action.heroId);
 		} else if (action instanceof ActionMoveToMonster) {
 			console.error(initMsg, 'ActionMoveToMonster:', action.id, 'monster:', action.monster.id, 'nbHero:', action.nbHero);
-		} else if (action instanceof ActionWind){
-			console.error(initMsg, 'ActionWind:', action.id, 'monster:', action.monster.id,'heroId:', action.heroId, 'moveToBefore:', action.moveToBefore, 'nbHero:', action.nbHero);
+		} else if (action instanceof ActionWind) {
+			console.error(initMsg, 'ActionWind:', action.id, 'monster:', action.monster.id, 'heroId:', action.heroId, 'moveToBefore:', action.moveToBefore, 'nbHero:', action.nbHero);
+		} else if (action instanceof ActionMove) {
+			console.error(initMsg, 'ActionMove:', action.id, 'posToGo:', action.posToGo);
 		}
 	}
 
