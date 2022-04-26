@@ -452,16 +452,16 @@ export class Game {
 		if (action instanceof ActionMoveToMonster) {
 			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
 
-			if (distanceMonsterBase < 5000) {
-				score += 20
-			} else if (distanceMonsterBase < 4000) {
-				score += 30;
-			} else if (distanceMonsterBase < 3000) {
-				score += 40;
+			if (distanceMonsterBase < 2000) {
+				score += 50;
 			} else if (distanceMonsterBase < 2500) {
 				score += 45;
-			} else if (distanceMonsterBase < 2000) {
-				score += 50;
+			} else if (distanceMonsterBase < 3000) {
+				score += 40;
+			} else if (distanceMonsterBase < 4000) {
+				score += 30;
+			} else if (distanceMonsterBase < 5000) {
+				score += 20;
 			}
 
 			// Todo action wind prioritaire
@@ -476,7 +476,7 @@ export class Game {
 
 
 		}
-		// this.logAction(action, 'score '+score)
+		this.logAction(action, 'score '+ score)
 		// console.error('score:', score);
 		return score;
 	}
