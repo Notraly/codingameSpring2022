@@ -21,13 +21,18 @@ export abstract class Action {
 
 export class ActionMoveToMonster extends Action {
 
-	constructor(public monster: Monster, nbHero: number) {
+	constructor(public monster: Monster, nbHero: number, public posToGo?: Point2D) {
 		super();
 		this.nbHero = nbHero;
 	}
 
 	doAction(msgs: string[] = []){
-		console.log('MOVE ' + this.monster.position[0] + ' ' + this.monster.position[1] + ' ' + msgs.join(' '));
+		if (this.posToGo){
+			console.log('MOVE ' + this.posToGo[0] + ' ' + this.posToGo[1] + ' ' + msgs.join(' '));
+		} else {
+
+			console.log('MOVE ' + this.monster.position[0] + ' ' + this.monster.position[1] + ' ' + msgs.join(' '));
+		}
 		msgs.splice(0);
 		return this.id;
 	}
@@ -105,4 +110,16 @@ export class ActionMove extends Action{
 		msgs.splice(0);
 	}
 
+}
+
+export class ActionShield extends Action{
+	constructor(public entityId: number) {
+		super();
+		this.nbHero = 1;
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('SPELL ' + 'SHIELD ' + this.entityId + ' ' + msgs.join(' '));
+		msgs.splice(0);
+	}
 }

@@ -1,9 +1,17 @@
 import {rn, rns, rp} from '../read';
 import {Base} from "./base";
 import {EntityType, Hero, Monster} from "./entity";
-import {distance, isEqual, Point2D} from "../utils";
-import {Action, ActionCamp, ActionMove, ActionMoveToMonster, ActionWind} from "./action";
-import {CampPosition, MANA_MINI, MAP_HEIGHT, MAP_WIDTH, WIND_ZONE} from "./commons";
+import {addPoint, distance, isEqual, Point2D} from "../utils";
+import {Action, ActionCamp, ActionMove, ActionMoveToMonster, ActionShield, ActionWind} from "./action";
+import {
+	CampPosition,
+	MANA_MINI,
+	MAP_HEIGHT,
+	MAP_WIDTH,
+	EXTENDED_BASE,
+	OPPONENT_MIND_ZONE,
+	WIND_ZONE
+} from "./commons";
 
 /**
  * Contain all information about stat of game
@@ -49,6 +57,10 @@ export class Game {
 	campPos: CampPosition[] = [];
 	actionForThisRound: { action: Action, heroId: number }[] = [];
 	campForAttack: Point2D[] = [];
+	hasBeenMindControlled = false;
+	attackModOn = false;
+	attackTouchEveryFourRound: {count: number, nbRound: number};
+	round: number = 0;
 
 	/**
 	 * methode call for init
@@ -66,10 +78,10 @@ export class Game {
 		]
 
 		this.campForAttack = [
-			[9312,1096],
-			[8000,4131],
-			[5658,5780],
-			[2510,6249]
+			[9312, 1096],
+			[8000, 4131],
+			[5658, 5780],
+			[2510, 6249]
 		]
 
 		if (isEqual(this.myBase.position, [0, 0])) {
@@ -90,6 +102,7 @@ export class Game {
 	 * use for read input and update game data
 	 */
 	readLoop() {
+		this.round++;
 		this.myHeroes = [];
 		this.opponentHeroes = [];
 		this.monsters = [];
@@ -262,8 +275,14 @@ export class Game {
 		this.possibleActions = [];
 
 		this.getMonsterNearBasePossible().map((monster) => {
+			let distanceFromBase = distance(monster.position, this.myBase.position);
+			if (distanceFromBase < EXTENDED_BASE) {
+				let posToGo = addPoint(monster.position, monster.speedVector);
+				this.possibleActions.push(new ActionMoveToMonster(monster, this.countHeroPerMonster(monster), posToGo));
+			} else {
+				this.possibleActions.push(new ActionMoveToMonster(monster, this.countHeroPerMonster(monster)));
+			}
 
-			this.possibleActions.push(new ActionMoveToMonster(monster, this.countHeroPerMonster(monster)));
 			// console.error(
 			// 	'monster Id:', monster.id,
 			// 	'hits left:', this.countHitBeforeMonsterDeath(monster),
@@ -289,18 +308,24 @@ export class Game {
 		return count === 0;
 	}
 
-	countMonsterInBase(): Monster[] {
+	getMonsterInBase(inExtendedBase: boolean = false): Monster[] {
 		let monsters: Monster[] = [];
 		this.getMonsterNearBasePossible().forEach((monster) => {
-			if (distance(this.myBase.position, monster.position) < 5000) {
-				monsters.push(monster)
+			if (inExtendedBase){
+				if (distance(this.myBase.position, monster.position) < EXTENDED_BASE) {
+					monsters.push(monster)
+				}
+			} else {
+				if (distance(this.myBase.position, monster.position) < 5000) {
+					monsters.push(monster)
+				}
 			}
 		})
 		return monsters;
 	}
 
 	fillActionWithWind() {
-		let monsterInBase = this.countMonsterInBase();
+		let monsterInBase = this.getMonsterInBase();
 		if (monsterInBase.length >= 2) {
 
 			let direction = [5939, 4019];
@@ -316,6 +341,100 @@ export class Game {
 			})
 		}
 	}
+
+	nextCampForAttacker(): Point2D {
+		let oldCamp = this.campForAttack[0];
+		this.campForAttack.splice(0, 1);
+		this.campForAttack.push(oldCamp);
+		let nextCamp = this.campForAttack[0];
+		console.error('next camp for attacker:', nextCamp);
+		return nextCamp;
+	}
+
+	heroHasBeenMindControl() {
+		this.myHeroes.forEach((hero) => {
+			if (hero.isControlled) {
+				this.hasBeenMindControlled = true;
+				console.error('hasBeenMindControlled', this.hasBeenMindControlled);
+			}
+		});
+	}
+
+	isNearOpponentHeroNearMyBase(hero: Hero): boolean {
+		let isNearOpponentHeroNearMyBase = false;
+		// console.error('opponent heroes', this.opponentHeroes);
+		this.opponentHeroes.forEach((opponent) => {
+				let nearOpponentDistance = distance(hero.position, opponent.position);
+				// console.error('nearOpponentDistance', nearOpponentDistance);
+				let heroNearBaseDistance = distance(hero.position, this.myBase.position);
+				// console.error('heroNearBaseDistance', heroNearBaseDistance);
+				if (nearOpponentDistance < OPPONENT_MIND_ZONE && heroNearBaseDistance < EXTENDED_BASE) {
+					isNearOpponentHeroNearMyBase = true;
+					// console.error('isNearOpponentHeroNearMyBase', isNearOpponentHeroNearMyBase);
+				}
+			}
+		)
+		return isNearOpponentHeroNearMyBase;
+	}
+
+	fillActionForThisRoundShieldForMyHero(heroLeft: Hero[]): Hero[] {
+		// console.error('heroLeft', heroLeft)
+		let newHeroLeft = heroLeft.map((hero) => {
+			// console.error('hero', hero);
+			if (this.hasBeenMindControlled && this.isNearOpponentHeroNearMyBase(hero) && hero.shieldLife === 0) {
+				let action = new ActionShield(hero.id);
+				this.logAction(action, 'H' + hero.id);
+				this.actionForThisRound.push({
+					action: action,
+					heroId: hero.id,
+				});
+			} else {
+				return hero;
+			}
+		}).filter(hero => hero);
+		// console.error('newHeroLeft', newHeroLeft);
+		return newHeroLeft;
+	}
+
+	//hero that attack is always id 2
+	updateCountEnoughAttackTouch(){
+		if (this.attackModOn){
+			let hero = this.getHeroById(2);
+
+			let monsterTouch = this.monsters.map((monster) => {
+				let distanceMonsterHero = distance(hero.position, monster.position);
+				if (distanceMonsterHero < 800){
+					this.attackTouchEveryFourRound.count++;
+					return monster
+				}
+			}).filter(monster => monster);
+
+			this.attackTouchEveryFourRound.nbRound++;
+
+			if (this.attackTouchEveryFourRound.nbRound === 4){
+				this.attackTouchEveryFourRound = {
+					count: 0,
+					nbRound: 0,
+				}
+			}
+		}
+	}
+
+	// Todo Attack mode for hero id 2
+
+	// Todo updateAttackMode
+	
+	// updateAttackMode(): boolean{
+	// 	if (this.myBase.health < 3) {
+	// 		this.attackModOn = false;
+	// 	}
+	//
+	// 	if (this.getMonsterInBase(true).length > 4) {
+	// 		this.attackModOn = false
+	// 	}
+	//
+	// 	if ()
+	// };
 
 	/**
 	 * game loop
@@ -333,6 +452,13 @@ export class Game {
 
 		let manaLeft = this.myBase.mana;
 
+		if (!this.hasBeenMindControlled) {
+			this.heroHasBeenMindControl();
+		}
+
+		//shield my hero if near opponent, near my base and opponent has already mind controlled one of my hero in this game
+		heroLeft = this.fillActionForThisRoundShieldForMyHero(heroLeft);
+
 		while (this.actionForThisRound.length < 3) {
 			// console.error('------------------------------------')
 			// console.error('heroLeft', heroLeft.map(hero => hero.id));
@@ -346,6 +472,7 @@ export class Game {
 			for (let i = 0; i < action.nbHero; i++) {
 				// console.error('hero left beginning for', heroLeft);
 				if (heroLeft.length > 0) {
+
 
 					if (action instanceof ActionMoveToMonster) {
 
@@ -446,7 +573,6 @@ export class Game {
 							}
 
 
-
 							// console.error('/!\\ heroLeft', heroLeft.map(hero => hero.id));
 
 						} else {
@@ -464,17 +590,22 @@ export class Game {
 			}
 		}
 
-		// console.error('action for this round');
-		// this.actionForThisRound.forEach((actionFor) => {
-		// 	this.logAction(actionFor.action, '\theroId ' + actionFor.heroId);
-		// })
+		console.error('action for this round');
+		this.actionForThisRound.forEach((actionFor) => {
+			this.logAction(actionFor.action, '\theroId ' + actionFor.heroId);
+		})
 
 		this.actionForThisRound
 			.sort((first, second) => 0 - (first.heroId > second.heroId ? -1 : 1))
 			.map((action) => {
 				let msg = [];
 				if (action.action instanceof ActionMoveToMonster) {
-					msg.push('H' + action.heroId, 'target:', action.action.monster.id);
+					if (action.action.posToGo){
+						msg.push('H' + action.heroId, 't:' + action.action.monster.id, 'move:', action.action.posToGo[0] + ',' + action.action.posToGo[1]);
+					} else {
+						msg.push('H' + action.heroId, 'target:', action.action.monster.id);
+					}
+
 				} else if (action.action instanceof ActionWind) {
 					msg.push('H' + action.heroId, 'wind:', action.action.monster.id);
 				} else if (action.action instanceof ActionCamp) {
@@ -491,6 +622,7 @@ export class Game {
 		// .map((action) => action.action.doAction([action.heroId.toString()]))
 
 		this.actionForThisRound = [];
+		this.updateCountEnoughAttackTouch();
 	}
 
 	/**
@@ -531,18 +663,19 @@ export class Game {
 		return score;
 	}
 
-	//Todo faire fonctionner cette fonction
-	nearestPointOnCircle(B: Point2D): Point2D {
-		let A = this.myBase.position;
-		const radius = 5000;
+	// Todo faire fonctionner cette fonction
 
-		let denominateur = Math.sqrt((B[0] - A[0]) * (B[0] - A[0]) + (B[1] - A[1]) * (B[1] - A[1]));
-
-		let resX = A[0] + (radius * (B[0] - A[0]) / denominateur);
-		let resY = A[1] + (radius * (B[1] - A[1]) / denominateur);
-
-		return [resX, resY];
-	}
+	// nearestPointOnCircle(B: Point2D): Point2D {
+	// 	let A = this.myBase.position;
+	// 	const radius = 5000;
+	//
+	// 	let denominateur = Math.sqrt((B[0] - A[0]) * (B[0] - A[0]) + (B[1] - A[1]) * (B[1] - A[1]));
+	//
+	// 	let resX = A[0] + (radius * (B[0] - A[0]) / denominateur);
+	// 	let resY = A[1] + (radius * (B[1] - A[1]) / denominateur);
+	//
+	// 	return [resX, resY];
+	// }
 
 	addMessage(msg: string) {
 		console.error(msg);
@@ -553,11 +686,13 @@ export class Game {
 		if (action instanceof ActionCamp) {
 			console.error(initMsg, 'ActionCamp:', action.id, 'heroId:', action.heroId);
 		} else if (action instanceof ActionMoveToMonster) {
-			console.error(initMsg, 'ActionMoveToMonster:', action.id, 'monster:', action.monster.id, 'nbHero:', action.nbHero);
+			console.error(initMsg, 'ActionMoveToMonster:', action.id, 'monster:', action.monster.id, 'nbHero:', action.nbHero, 'posToGo', action?.posToGo);
 		} else if (action instanceof ActionWind) {
 			console.error(initMsg, 'ActionWind:', action.id, 'monster:', action.monster.id, 'heroId:', action.heroId, 'moveToBefore:', action.moveToBefore, 'nbHero:', action.nbHero);
 		} else if (action instanceof ActionMove) {
 			console.error(initMsg, 'ActionMove:', action.id, 'posToGo:', action.posToGo);
+		} else if (action instanceof ActionShield) {
+			console.error(initMsg, 'ActionShield:', action.id, 'entityId:', action.entityId);
 		}
 	}
 
