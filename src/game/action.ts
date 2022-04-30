@@ -1,4 +1,4 @@
-import {Monster} from "./entity";
+import {Hero, Monster} from "./entity";
 import {CampPosition, MAP_HEIGHT, MAP_WIDTH} from "./commons";
 import {distance, isEqual, Point2D} from "../utils";
 
@@ -26,8 +26,8 @@ export class ActionMoveToMonster extends Action {
 		this.nbHero = nbHero;
 	}
 
-	doAction(msgs: string[] = []){
-		if (this.posToGo){
+	doAction(msgs: string[] = []) {
+		if (this.posToGo) {
 			console.log('MOVE ' + this.posToGo[0] + ' ' + this.posToGo[1] + ' ' + msgs.join(' '));
 		} else {
 
@@ -39,7 +39,7 @@ export class ActionMoveToMonster extends Action {
 
 }
 
-export class ActionCamp extends Action{
+export class ActionCamp extends Action {
 	constructor(public camp: CampPosition[], public heroId?: number) {
 		super();
 		this.nbHero = 1;
@@ -49,7 +49,7 @@ export class ActionCamp extends Action{
 		// console.error('camps', this.camp);
 		let index = this.heroId;
 		//todo go to nearest one
-		if (this.heroId > 2){
+		if (this.heroId > 2) {
 			index = this.heroId - 3;
 		}
 		this.camp[index].heroId = this.heroId;
@@ -60,10 +60,10 @@ export class ActionCamp extends Action{
 	}
 
 
-	doAction(msgs: string[] = []){
+	doAction(msgs: string[] = []) {
 		let index = this.heroId;
 		//todo go to nearest one
-		if (this.heroId > 2){
+		if (this.heroId > 2) {
 			index = this.heroId - 3;
 		}
 		let nearestCamp = this.camp[index];
@@ -78,28 +78,44 @@ export class ActionWait extends Action {
 		this.nbHero = 1;
 	}
 
-	doAction(msgs: string[] = []){
+	doAction(msgs: string[] = []) {
 		console.log('WAIT ' + ' ' + msgs.join(' '));
 		msgs.splice(0);
 	}
 }
 
-export class ActionWind extends Action {
+export class ActionWindMonster extends Action {
 
-	constructor(public monster: Monster, public direction, public nbHero: number = 1, public moveToBefore?: Point2D, public heroId: number = -1 ) {
+	constructor(public monster: Monster, public direction: Point2D, public nbHero: number = 1, public moveToBefore?: Point2D, public heroId: number = -1) {
 		super();
 
 		// this.nbHero = nbHero; TODO set nbHero if a lot of monster
 	}
 
 	doAction(msgs: string[] = []) {
-		console.log('SPELL WIND ' + this.direction[0] + ' ' + this.direction[1] + ' ' + msgs.join(' '));
+		console.log('SPELL ' + 'WIND ' + this.direction[0] + ' ' + this.direction[1] + ' ' + msgs.join(' '));
 		msgs.splice(0);
 		return this.id;
 	}
 }
 
-export class ActionMove extends Action{
+
+export class ActionWindOpponent extends Action {
+
+	constructor(public opponent: Hero, public direction, public nbHero: number = 1, public moveToBefore?: Point2D, public heroId: number = -1) {
+		super();
+
+		// this.nbHero = nbHero; TODO set nbHero if a lot of monster
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('SPELL ' + 'WIND ' + this.direction[0] + ' ' + this.direction[1] + ' ' + msgs.join(' '));
+		msgs.splice(0);
+		return this.id;
+	}
+}
+
+export class ActionMove extends Action {
 	constructor(public posToGo: Point2D) {
 		super();
 		this.nbHero = 1;
@@ -112,7 +128,7 @@ export class ActionMove extends Action{
 
 }
 
-export class ActionShield extends Action{
+export class ActionShield extends Action {
 	constructor(public entityId: number) {
 		super();
 		this.nbHero = 1;
@@ -120,6 +136,43 @@ export class ActionShield extends Action{
 
 	doAction(msgs: string[] = []) {
 		console.log('SPELL ' + 'SHIELD ' + this.entityId + ' ' + msgs.join(' '));
+		msgs.splice(0);
+	}
+}
+
+export class ActionControlOpponent extends Action {
+	constructor(public opponentId: number, public posToGo: Point2D) {
+		super();
+		this.nbHero = 1;
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('SPELL ' + 'CONTROL ' + this.opponentId + ' ' + this.posToGo[0] + ' ' + this.posToGo[1] + ' ' + msgs.join(' '));
+		msgs.splice(0);
+	}
+}
+
+export class ActionCampAttack extends Action {
+	constructor(public posToGo: Point2D, public heroId: number) {
+		super();
+		this.nbHero = 1;
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('MOVE ' + this.posToGo[0] + ' ' + this.posToGo[1] + ' ' + msgs.join(' '));
+		msgs.splice(0);
+	}
+
+}
+
+export class ActionControlMonster extends Action {
+	constructor(public monsterId: number, public posToGo: Point2D) {
+		super();
+		this.nbHero = 1;
+	}
+
+	doAction(msgs: string[] = []) {
+		console.log('SPELL ' + 'CONTROL ' + this.monsterId + ' ' + this.posToGo[0] + ' ' + this.posToGo[1] + ' ' + msgs.join(' '));
 		msgs.splice(0);
 	}
 }
