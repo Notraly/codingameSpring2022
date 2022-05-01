@@ -141,7 +141,7 @@ export class ActionShield extends Action {
 }
 
 export class ActionControlOpponent extends Action {
-	constructor(public opponentId: number, public posToGo: Point2D) {
+	constructor(public opponentId: number, public posToGo: Point2D, public heroId: number = -1) {
 		super();
 		this.nbHero = 1;
 	}
