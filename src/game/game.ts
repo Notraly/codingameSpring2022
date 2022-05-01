@@ -17,7 +17,9 @@ import {
 import {
 	CampPosition,
 	EXTENDED_BASE,
-	INIT_CAMP_ATTACK, MANA_ECO_FOR_ATTACK,
+	HERO_ZONE,
+	INIT_CAMP_ATTACK,
+	MANA_ECO_FOR_ATTACK,
 	MANA_MINI,
 	MANA_MINI_FOR_ATTACK,
 	MAP_HEIGHT,
@@ -54,6 +56,26 @@ export class Game {
 	arrivedAtInitAttackPos: boolean = false;
 	windDirection: Point2D = [5939, 4019];
 	heroOldPosById: Point2D[];
+	// attackOrdePoint: Point2D = [2212, 6802];
+	attackOrdePoint: Point2D = [13790, 1134];
+	attackFinalOrdePoint: Point2D = [12549, 6896];
+	arrivedAtOrdePoint: boolean = false;
+	arrivedAtFinalOrdePoint: boolean = false;
+	attackWindDone: number = 0;
+	attackStay: boolean = false;
+
+	attackEcoOn: boolean = true;
+	attackEcoCamp: Point2D[] = [
+		[8787, 4431],
+		[6557, 6942],
+		[11035, 1546]
+	];
+
+	attackRepeat: number = 1;
+
+	hasSeenRedMonster: boolean = false;
+
+	manaMiniForAttack: number = MANA_MINI_FOR_ATTACK;
 
 	/**
 	 * methode call for init
@@ -91,6 +113,9 @@ export class Game {
 				pos[0] = MAP_WIDTH - pos[0];
 				pos[1] = MAP_HEIGHT - pos[1];
 			}
+
+			this.attackOrdePoint = this.flipPosition(this.attackOrdePoint);
+
 		} else {
 			for (const attackPos of this.campForAttack) {
 				attackPos[0] = MAP_WIDTH - attackPos[0];
@@ -100,6 +125,8 @@ export class Game {
 			this.windDirection = this.flipPosition(this.windDirection);
 			// this.windDirection[0] = MAP_WIDTH - this.windDirection[0];
 			// this.windDirection[1] = MAP_HEIGHT - this.windDirection[1];
+
+			this.attackFinalOrdePoint = this.flipPosition(this.attackFinalOrdePoint);
 		}
 
 		this.heroesPerPlayer = rn();
@@ -197,6 +224,12 @@ export class Game {
 			let speedVector: Point2D = [data[7], data[8]];
 			let nearBase = !!data[9];
 			let threatFor = data[10];
+
+			if (!this.hasSeenRedMonster){
+				if (type === EntityType.MONSTER && health > 18){
+					this.hasSeenRedMonster = true;
+				}
+			}
 
 			switch (type) {
 				case EntityType.MONSTER:
@@ -468,10 +501,25 @@ export class Game {
 		this.monsters.forEach((monster) => {
 			if (monster.shieldLife === 0) {
 				if (distance(hero.position, monster.position) < WIND_ZONE) {
-					console.error('monster in hero WIND_ZONE', monster.id);
+					// console.error('monster in hero WIND_ZONE', monster.id);
 					monsters.push(monster)
 				}
 			}
+		})
+		return monsters;
+	}
+
+	getMonsterNearHero(heroId: number): Monster[] {
+		let monsters: Monster[] = [];
+		let hero = this.getHeroById(heroId);
+		// console.error('hero', hero);
+
+		this.monsters.forEach((monster) => {
+			if (distance(hero.position, monster.position) < HERO_ZONE) {
+				// console.error('monster in hero HERO_ZONE', monster.id);
+				monsters.push(monster)
+			}
+
 		})
 		return monsters;
 	}
@@ -539,7 +587,7 @@ export class Game {
 
 	fillActionWithWind() {
 		let monsterInBase = this.getMonsterNoShieldInBase();
-		if (monsterInBase.length >= 1) {
+		if (monsterInBase.length >= 1 && this.round > 90) {
 
 			monsterInBase.forEach((monster) => {
 				// console.error('fillActionWithWind monster', monster)
@@ -596,7 +644,7 @@ export class Game {
 					}
 				);
 
-				if ((this.attackHasBeenMindControlled || this.attackHasBeenWind) && nearOpponnent && hero.shieldLife === 0) {
+				if ((this.attackHasBeenMindControlled || (this.attackHasBeenWind && this.myBase.mana > 90)) && nearOpponnent && hero.shieldLife === 0) {
 					let action = new ActionShield(hero.id);
 					this.logAction(action, 'H' + hero.id);
 					this.actionForThisRound.push({
@@ -707,14 +755,14 @@ export class Game {
 	 * => OTHERS functions
 	 * -------------------------------------------------------------------------------------------------------------- */
 
-	nextCampForAttacker(): Point2D {
+	nextCampForAttacker(camp: Point2D[]): Point2D {
 		let heroAttack = this.getHeroById(this.attackHeroId);
-		let oldCamp = this.campForAttack[0];
+		let oldCamp = camp[0];
 		let nextCamp = oldCamp;
 		if (distance(heroAttack.position, oldCamp) < 200) {
-			this.campForAttack.splice(0, 1);
-			this.campForAttack.push(oldCamp);
-			nextCamp = this.campForAttack[0];
+			camp.splice(0, 1);
+			camp.push(oldCamp);
+			nextCamp = camp[0];
 		}
 		// console.error('next camp for attacker:', nextCamp);
 		return nextCamp;
@@ -744,7 +792,7 @@ export class Game {
 				// console.error('hasBeenWind', this.hasBeenWind);
 			} else if (distanceDiff > OPPONENT_WIND_FORCE_ZONE && hero.id === this.attackHeroId) {
 				this.attackHasBeenWind = true;
-				// console.error('attackHasBeenWind', this.attackHasBeenWind);
+				console.error('attackHasBeenWind', this.attackHasBeenWind);
 			}
 		});
 	}
@@ -772,14 +820,20 @@ export class Game {
 
 	updateAttackMode() {
 		let lastMode = this.attackModOn;
-		this.attackModOn = true
+		this.attackModOn = true;
 
-		console.error('attackModOn: ', this.attackModOn);
+		if (this.getMonsterInBase().length > 3){
+			this.manaMiniForAttack = 40;
+		} else {
+			this.manaMiniForAttack = MANA_MINI_FOR_ATTACK;
+		}
+
+		// console.error('attackModOn: ', this.attackModOn);
 		// console.error('lastMode:', lastMode);
 		// console.error('hero2AttackTouch', this.hero2AttackTouch)
 
-		// console.error(this.myBase.mana > MANA_MINI_FOR_ATTACK)
-		// if (this.myBase.mana > MANA_MINI_FOR_ATTACK) {
+		// console.error(this.myBase.mana > this.manaMiniForAttack)
+		// if (this.myBase.mana > this.manaMiniForAttack) {
 		// 	this.attackModOn = true;
 		// 	console.error('baseMana > attackModOn: ', this.attackModOn);
 		// }
@@ -1253,7 +1307,6 @@ export class Game {
 			} else {
 				score += 50;
 			}
-			// this.logAction(action, 'score ' + score + ' ||')
 		} else if (action instanceof ActionWindOpponent) {
 			let distanceOpponentBase = distance(this.myBase.position, action.opponent.position);
 
@@ -1262,10 +1315,8 @@ export class Game {
 			} else {
 				score += 100;
 			}
-			// this.logAction(action, 'score ' + score + ' ||')
 		}
 		// this.logAction(action, 'score ' + score + ' ||')
-		// console.error('score:', score);
 		return score;
 	}
 
@@ -1273,107 +1324,262 @@ export class Game {
 	attackMod(manaLeft: number) {
 		let attackHero = this.getHeroById(this.attackHeroId);
 		// console.error('attackHero', attackHero);
-		if (distance(this.campForAttack[1], attackHero.position) < 800) {
+
+		// console.error('attack eco on', this.attackEcoOn);
+
+		let camp: Point2D[];
+		if (this.attackEcoOn) {
+			camp = this.attackEcoCamp;
+		} else {
+			camp = this.campForAttack;
+		}
+
+		if (distance(camp[1], attackHero.position) < 800) {
 			this.arrivedAtInitAttackPos = true;
+			// console.error('arrivedAtInitAttackPos', this.arrivedAtInitAttackPos);
 		}
 
 		if (this.arrivedAtInitAttackPos) {
-
-			// console.error('campForAttack', this.campForAttack);
+			// console.error('camp for Attack', camp);
 
 			let attackActionPossible: Action[] = [];
 
-			let monsterNoShieldInOpponentBase = this.getMonsterNoShieldInOpponentBase();
-			console.error('monsterNoShieldInOpponentBase', monsterNoShieldInOpponentBase.map(monster => monster.id));
-			console.error('getMonsterInOpponentBase', this.getMonsterInOpponentBase().map(monster => monster.id));
+			console.error('attack > stay:', this.attackStay);
+			console.error('attack > round:', this.round);
+			console.error('attack > op health:', this.opponentBase.health);
 
-			if (this.getMonsterInOpponentBase().length > 2) {
-				// todo rest in opponent base to kill it
+			if (this.attackStay && this.attackRepeat === 1 && this.round > 160 && this.opponentBase.health >= 2){
+				this.attackStay = false;
+				this.arrivedAtOrdePoint = false;
+				this.attackRepeat--;
+				this.attackOrdePoint = [11073, 1171];
 
-				// todo go to nearest mob and wind it
+				if (isEqual(this.myBase.position, [0,0])){
+					this.attackOrdePoint = this.flipPosition(this.attackOrdePoint);
+				}
+			}
 
-				this.getMonsterNoShieldInOpponentBase().forEach((monster) => {
-					let distanceMonsterHero = distance(monster.position, attackHero.position);
-					if (distanceMonsterHero > WIND_ZONE && this.myBase.mana > MANA_MINI_FOR_ATTACK){
-						let moveToBefore = addPoint(monster.position, monster.speedVector);
+			if (this.attackEcoOn) {
+				let monsterNearHero = this.getMonsterNearHero(this.attackHeroId);
+				monsterNearHero.forEach((monster) => {
+					let moveTo = addPoint(monster.position, monster.speedVector);
+					let actionMoveToMonster = new ActionMoveToMonster(monster, 1, moveTo);
 
-						let actionMove = new ActionMove(moveToBefore);
-
-						attackActionPossible.push(actionMove);
-					} else {
-						let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
-
-						// console.error('fill attack action', action);
-						attackActionPossible.push(actionWind);
-					}
+					attackActionPossible.push(actionMoveToMonster);
 				})
+
+				if (this.round > 110) {
+					this.attackEcoOn = false
+
+					console.error('attack eco on', this.attackEcoOn);
+				} else if (this.round > 105 && this.myBase.health <= 2) {
+					this.attackEcoOn = false;
+
+					console.error('attack eco on', this.attackEcoOn);
+
+				} else if (this.myBase.health > 2) {
+					if (manaLeft > MANA_ECO_FOR_ATTACK && this.hasSeenRedMonster) {
+						this.attackEcoOn = false
+						console.error('attack eco on', this.attackEcoOn);
+					}
+				}
+
 
 			} else {
-				monsterNoShieldInOpponentBase.forEach((monster) => {
-					// console.error('distance attackHero monster', distance(attackHero.position, monster.position));
-					// console.error('monster', monster);
-					if (manaLeft - 10 > MANA_MINI_FOR_ATTACK) {
-						if (!monster.nearBase) {
+				// todo go to attackOrdePoint
 
-							let actionControl = new ActionControlMonster(monster.id, this.opponentBase.position);
+				if (distance(this.attackOrdePoint, attackHero.position) < 800) {
+					this.arrivedAtOrdePoint = true;
+					console.error('arrivedAtOrdePoint', this.arrivedAtOrdePoint);
+				}
 
-							attackActionPossible.push(actionControl);
-						} else if (monster.threatFor === 2) {
+				if (!this.arrivedAtOrdePoint) {
+					console.error('go to attackOrdePoint');
+					let moveToAction = new ActionMove(this.attackOrdePoint);
+					attackActionPossible.push(moveToAction);
+					// this.logAction(moveToAction, 'attack');
+					this.arrivedAtFinalOrdePoint = false;
 
-							let actionShield = new ActionShield(monster.id);
+				} else {
 
-							attackActionPossible.push(actionShield);
-						} else if (distance(attackHero.position, monster.position) < WIND_ZONE) {
+					// todo move to attackFinalOrdePoint
 
-							let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
+					console.error('go to attackOrdeFinalPoint');
 
-							// console.error('fill attack action', action);
-							attackActionPossible.push(actionWind);
-						} else {
-							if (distance(monster.position, this.opponentBase.position) > 3000) {
-								let moveToBefore = addPoint(monster.position, monster.speedVector);
-
-								let actionMove = new ActionMove(moveToBefore);
-
-								attackActionPossible.push(actionMove);
-							}
-						}
+					if (!this.arrivedAtFinalOrdePoint && distance(this.attackFinalOrdePoint, attackHero.position) < 800) {
+						this.arrivedAtFinalOrdePoint = true;
+						// console.error('arrivedAtFinalOrdePoint', this.arrivedAtFinalOrdePoint);
 					} else {
-						if (distance(monster.position, this.opponentBase.position) > 6000) {
-							let moveToBefore = addPoint(monster.position, monster.speedVector);
+						this.arrivedAtFinalOrdePoint = false;
+					}
 
-							let actionMove = new ActionMove(moveToBefore);
+					if (!this.arrivedAtFinalOrdePoint) {
 
-							attackActionPossible.push(actionMove);
+						// todo control mob near me
+
+						let monsterNearHero = this.getMonsterNearHero(this.attackHeroId);
+
+						monsterNearHero.forEach((monster) => {
+							if (!monster.isControlled && monster.threatFor != 2 && manaLeft - 10 > this.manaMiniForAttack) {
+								let actionControlMonster = new ActionControlMonster(monster.id, this.opponentBase.position);
+								attackActionPossible.push(actionControlMonster);
+								// this.logAction(actionControlMonster, 'attack');
+							}
+						});
+
+						if (attackActionPossible.length === 0) {
+							let actionMoveToFinalOrdePoint = new ActionMove(this.attackFinalOrdePoint);
+							attackActionPossible.push(actionMoveToFinalOrdePoint);
+							// this.logAction(actionMoveToFinalOrdePoint, 'attack');
 						}
 
+					} else {
+
+						this.attackStay = true;
+						console.error('attackStay', this.attackStay);
+
+						// todo bubble or mind control all mob near me
+
+						// if (!this.isHero2TouchInLastNRound(4)) {
+						// 	this.attackStay = false;
+						// 	console.error('attackStay', this.attackStay);
+						// }
+
+						// } else {
+						// 	this.attackStay = true;
+						// 	console.error('attackStay', this.attackStay);
+						// }
+
+
+
+						let monsterNearHero = this.getMonsterNearHero(this.attackHeroId);
+						monsterNearHero.forEach((monster) => {
+							if (monster.threatFor != 2 && !monster.isControlled && monster.shieldLife === 0 && manaLeft - 10 > this.manaMiniForAttack) {
+								let actionControlMonster = new ActionControlMonster(monster.id, this.opponentBase.position);
+								attackActionPossible.push(actionControlMonster);
+								// this.logAction(actionControlMonster, 'attack');
+							} else if (monster.shieldLife === 0 && manaLeft - 10 > this.manaMiniForAttack) {
+								// if (this.attackWindDone != 2) {
+								// 	let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
+								// 	attackActionPossible.push(actionWind);
+								// 	this.logAction(actionWind, 'attack');
+								// 	this.attackWindDone++;
+								// } else {
+								// 	let actionShieldMonster = new ActionShield(monster.id);
+								// 	attackActionPossible.push(actionShieldMonster);
+								// 	this.logAction(actionShieldMonster, 'attack');
+								// }
+
+								if (distance(monster.position, this.opponentBase.position) > 6000){
+									if (distance(monster.position, attackHero.position) < WIND_ZONE){
+										let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
+										attackActionPossible.push(actionWind);
+										// this.logAction(actionWind, 'attack');
+										this.attackWindDone++;
+									}
+								} else {
+									let actionShieldMonster = new ActionShield(monster.id);
+									attackActionPossible.push(actionShieldMonster);
+									// this.logAction(actionShieldMonster, 'attack');
+								}
+
+							}
+						});
 					}
-				});
+				}
+
+				// let monsterNoShieldInOpponentBase = this.getMonsterNoShieldInOpponentBase();
+				// console.error('monsterNoShieldInOpponentBase', monsterNoShieldInOpponentBase.map(monster => monster.id));
+				// console.error('getMonsterInOpponentBase', this.getMonsterInOpponentBase().map(monster => monster.id));
+				//
+				// if (this.getMonsterInOpponentBase().length > 2) {
+				// 	// todo rest in opponent base to kill it
+				//
+				// 	// todo go to nearest mob and wind it
+				//
+				// 	this.getMonsterNoShieldInOpponentBase().forEach((monster) => {
+				// 		let distanceMonsterHero = distance(monster.position, attackHero.position);
+				// 		if (distanceMonsterHero > WIND_ZONE && this.myBase.mana > this.manaMiniForAttack) {
+				// 			let moveToBefore = addPoint(monster.position, monster.speedVector);
+				//
+				// 			let actionMove = new ActionMove(moveToBefore);
+				//
+				// 			attackActionPossible.push(actionMove);
+				// 		} else {
+				// 			let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
+				//
+				// 			// console.error('fill attack action', action);
+				// 			attackActionPossible.push(actionWind);
+				// 		}
+				// 	})
+				//
+				// } else {
+				// 	monsterNoShieldInOpponentBase.forEach((monster) => {
+				// 		// console.error('distance attackHero monster', distance(attackHero.position, monster.position));
+				// 		// console.error('monster', monster);
+				// 		if (manaLeft - 10 > this.manaMiniForAttack) {
+				// 			if (!monster.nearBase) {
+				//
+				// 				let actionControl = new ActionControlMonster(monster.id, this.opponentBase.position);
+				//
+				// 				attackActionPossible.push(actionControl);
+				// 			} else if (monster.threatFor === 2) {
+				//
+				// 				let actionShield = new ActionShield(monster.id);
+				//
+				// 				attackActionPossible.push(actionShield);
+				// 			} else if (distance(attackHero.position, monster.position) < WIND_ZONE) {
+				//
+				// 				let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
+				//
+				// 				// console.error('fill attack action', action);
+				// 				attackActionPossible.push(actionWind);
+				// 			} else {
+				// 				if (distance(monster.position, this.opponentBase.position) > 3000) {
+				// 					let moveToBefore = addPoint(monster.position, monster.speedVector);
+				//
+				// 					let actionMove = new ActionMove(moveToBefore);
+				//
+				// 					attackActionPossible.push(actionMove);
+				// 				}
+				// 			}
+				// 		} else {
+				// 			if (distance(monster.position, this.opponentBase.position) > 6000) {
+				// 				let moveToBefore = addPoint(monster.position, monster.speedVector);
+				//
+				// 				let actionMove = new ActionMove(moveToBefore);
+				//
+				// 				attackActionPossible.push(actionMove);
+				// 			}
+				//
+				// 		}
+				// 	});
+				// }
+				//
+				// if (manaLeft - 10 > this.manaMiniForAttack) {
+				// 	let monsterNoShieldNearHero = this.getMonsterNoShieldNearHero(attackHero.id);
+				// 	monsterNoShieldNearHero.forEach((monster) => {
+				// 		if (distance(attackHero.position, monster.position) < WIND_ZONE) {
+				// 			let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
+				//
+				// 			// console.error('fill attack action', action);
+				// 			attackActionPossible.push(actionWind);
+				// 		}
+				// 	})
+				//
+				// 	let opponentNoShieldInOpponentBase = this.getOpponentNoShieldInOpponentBase(true);
+				//
+				// 	opponentNoShieldInOpponentBase.forEach((opponent) => {
+				// 		if (distance(attackHero.position, opponent.position) < OPPONENT_MIND_ZONE) {
+				// 			let action = new ActionControlOpponent(opponent.id, this.myBase.position);
+				//
+				// 			// console.error('fill attack action', action);
+				// 			attackActionPossible.push(action);
+				// 		}
+				// 	})
+				// }
 			}
 
-
-			if (manaLeft - 10 > MANA_MINI_FOR_ATTACK) {
-				let monsterNoShieldNearHero = this.getMonsterNoShieldNearHero(attackHero.id);
-				monsterNoShieldNearHero.forEach((monster) => {
-					if (distance(attackHero.position, monster.position) < WIND_ZONE) {
-						let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
-
-						// console.error('fill attack action', action);
-						attackActionPossible.push(actionWind);
-					}
-				})
-
-				// let opponentNoShieldInOpponentBase = this.getOpponentNoShieldInOpponentBase(true);
-				//
-				// opponentNoShieldInOpponentBase.forEach((opponent) => {
-				// 	if (distance(attackHero.position, opponent.position) < OPPONENT_MIND_ZONE) {
-				// 		let action = new ActionControlOpponent(opponent.id, this.myBase.position);
-				//
-				// 		// console.error('fill attack action', action);
-				// 		attackActionPossible.push(action);
-				// 	}
-				// })
-			}
 
 			// console.error('possible action attack HPA', JSON.stringify(attackActionPossible, null, '\t'));
 			let actionToDo;
@@ -1384,14 +1590,14 @@ export class Game {
 			// console.error('actionToDo attack', actionToDo);
 
 			if (actionToDo) {
-				this.logAction(actionToDo, 'HPA attack:');
+				// this.logAction(actionToDo, 'HPA attack:');
 				this.actionForThisRound.push({action: actionToDo, heroId: this.attackHeroId});
 			} else {
 				attackActionPossible = [];
 
 				let monsterNoShieldNearHero = this.getMonsterNoShieldNearHero(attackHero.id);
 				monsterNoShieldNearHero.forEach((monster) => {
-					if (manaLeft - 10 > MANA_MINI_FOR_ATTACK) {
+					if (manaLeft - 10 > this.manaMiniForAttack) {
 						let actionWind = new ActionWindMonster(monster, this.opponentBase.position);
 
 						// console.error('fill attack action', action);
@@ -1402,22 +1608,24 @@ export class Game {
 				if (attackActionPossible.length > 0) {
 					actionToDo = attackActionPossible.best((action) => this.actionScore(action));
 				} else {
-					let nextCamp = this.nextCampForAttacker();
-					// if (this.myBase.mana < MANA_ECO_FOR_ATTACK) {
-					// 	nextCamp = [8787, 4487];
-					// } else {
-					// 	// console.error('attack HPA: go to camp');
-					// 	nextCamp = this.nextCampForAttacker();
-					// }
+					let nextCamp;
+					if (this.attackStay) {
+						nextCamp = this.attackFinalOrdePoint;
+					} else {
+						// console.error('attack HPA: go to camp');
+						nextCamp = this.nextCampForAttacker(camp);
+					}
 
 
 					actionToDo = new ActionCampAttack(nextCamp, this.attackHeroId);
 				}
+				if (actionToDo) {
+					this.actionForThisRound.push({action: actionToDo, heroId: this.attackHeroId});
+				}
 
-				this.actionForThisRound.push({action: actionToDo, heroId: this.attackHeroId});
 			}
 		} else {
-			this.actionForThisRound.push({action: new ActionMove(this.campForAttack[1]), heroId: this.attackHeroId});
+			this.actionForThisRound.push({action: new ActionMove(camp[1]), heroId: this.attackHeroId});
 		}
 	}
 

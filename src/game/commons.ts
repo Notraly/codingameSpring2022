@@ -5,11 +5,12 @@ export interface CampPosition {
 	heroId: number;
 }
 
-export const MANA_MINI = 30;
+export const MANA_MINI = 20;
 export const MANA_MINI_FOR_ATTACK = 20;
-export const MANA_ECO_FOR_ATTACK = 20;
+export const MANA_ECO_FOR_ATTACK = 180;
 
 export const WIND_ZONE = 1200;
+export const HERO_ZONE = 2200;
 
 
 export const MAP_WIDTH = 17630;
