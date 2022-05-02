@@ -1288,6 +1288,9 @@ export class Game {
 				score += 45;
 			} else if (distanceMonsterBase < 3000) {
 				score += 40;
+				if (action.monster.shieldLife > 0) {
+					score += 100;
+				}
 			} else if (distanceMonsterBase < 4000) {
 				score += 30;
 			} else if (distanceMonsterBase < 5000) {
@@ -1296,9 +1299,6 @@ export class Game {
 				score += 10;
 			}
 
-			if (action.monster.shieldLife > 0) {
-				score += 100;
-			}
 		} else if (action instanceof ActionWindMonster) {
 			let distanceMonsterBase = distance(this.myBase.position, action.monster.position);
 
