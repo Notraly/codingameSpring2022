@@ -65,10 +65,16 @@ export class Game {
 	attackStay: boolean = false;
 
 	attackEcoOn: boolean = true;
+	// attackEcoCamp: Point2D[] = [
+	// 	[8787, 4431],
+	// 	[6557, 6942],
+	// 	[11035, 1546]
+	// ];
+
 	attackEcoCamp: Point2D[] = [
-		[8787, 4431],
-		[6557, 6942],
-		[11035, 1546]
+		[7869,703],
+		[10358, 571],
+		[12497, 609]
 	];
 
 	attackRepeat: number = 1;
@@ -1362,10 +1368,21 @@ export class Game {
 			if (this.attackEcoOn) {
 				let monsterNearHero = this.getMonsterNearHero(this.attackHeroId);
 				monsterNearHero.forEach((monster) => {
-					let moveTo = addPoint(monster.position, monster.speedVector);
-					let actionMoveToMonster = new ActionMoveToMonster(monster, 1, moveTo);
 
-					attackActionPossible.push(actionMoveToMonster);
+					let isNearMap;
+					if (isEqual(this.myBase.position, [0,0])){
+						isNearMap = monster.position[1] < 2000;
+						console.error('isNearMap', isNearMap, monster.position[1] );
+					} else {
+						isNearMap = (MAP_HEIGHT - monster.position[1]) < 2000;
+						console.error('isNearMap', isNearMap, MAP_HEIGHT - monster.position[1]);
+					}
+					if (isNearMap){
+						let moveTo = addPoint(monster.position, monster.speedVector);
+						let actionMoveToMonster = new ActionMoveToMonster(monster, 1, moveTo);
+
+						attackActionPossible.push(actionMoveToMonster);
+					}
 				})
 
 				if (this.round > 110) {
